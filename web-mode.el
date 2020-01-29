@@ -842,6 +842,7 @@ Must be used in conjunction with web-mode-enable-block-face."
     ("django"           . ("dtl" "twig" "swig" "jinja" "jinja2" "erlydtl" "liquid"
                            "clabango" "selmer" "nunjucks"))
     ("dust"             . ("dustjs"))
+    ("eccube"              . ())
     ("ejs"              . ())
     ("elixir"           . ("phoenix"))
     ("erb"              . ("eruby" "erubis"))
@@ -1258,6 +1259,7 @@ Must be used in conjunction with web-mode-enable-block-face."
    '("ctemplate"        . "[$]?{[{~].")
    '("django"           . "{[#{%]")
    '("dust"             . "{.")
+   '("eccube"           . "<!--{[[:alpha:]#$/*\"]")
    '("elixir"           . "<%")
    '("ejs"              . "<%")
    '("erb"              . "<%\\|^%.")
@@ -2287,6 +2289,7 @@ shouldn't be moved back.)")
     ("closure"          . web-mode-closure-font-lock-keywords)
     ("ctemplate"        . web-mode-ctemplate-font-lock-keywords)
     ("dust"             . web-mode-dust-font-lock-keywords)
+    ("eccube"           . web-mode-smarty-font-lock-keywords)
     ("elixir"           . web-mode-erlang-font-lock-keywords)
     ("ejs"              . web-mode-ejs-font-lock-keywords)
     ("erb"              . web-mode-erb-font-lock-keywords)
@@ -3041,6 +3044,24 @@ another auto-completion with different ac-sources (e.g. ac-php)")
            ) ;cond
           ) ;xoops
 
+         ((string= web-mode-engine "eccube")
+          (cond
+           ((string= tagopen "<!--{*")
+            (setq closing-string "*}-->")
+            )
+           ((string= tagopen "<!--{#")
+            (setq closing-string "#}-->"
+                  delim-open "<!--{#"
+                  delim-close "#}-->")
+            )
+           (t
+            (setq closing-string (cons "<!--{" "}-->")
+                  delim-open "<!--{/?"
+                  delim-close "}-->")
+            ) ;t
+           ) ;cond
+          ) ;eccube
+
          ((string= web-mode-engine "web2py")
           (setq closing-string "}}"
                 delim-open "{{[=]?"
@@ -3294,6 +3315,21 @@ another auto-completion with different ac-sources (e.g. ac-php)")
             (goto-char open)
             (setq tmp (web-mode-closing-delimiter-position
                        "}"
+                       (point)
+                       (line-end-position)))
+            (if tmp
+                (setq tmp (1+ tmp))
+              (setq tmp (line-end-position)))
+            (goto-char tmp)
+            (setq close (point)
+                  pos (point))
+            )
+
+           ((and (string= web-mode-engine "eccube")
+                 (string= closing-string "}-->"))
+            (goto-char open)
+            (setq tmp (web-mode-closing-delimiter-position
+                       "}-->"
                        (point)
                        (line-end-position)))
             (if tmp
@@ -3619,7 +3655,7 @@ another auto-completion with different ac-sources (e.g. ac-php)")
   ;;(message "reg-beg(%S) reg-end(%S) delim-open(%S) delim-close(%S)" reg-beg reg-end delim-open delim-close)
   (when (member web-mode-engine
                 '("artanis" "asp" "aspx" "cl-emb" "clip" "closure" "ctemplate" "django" "dust"
-                  "elixir" "ejs" "erb" "freemarker" "go" "hero" "jsp" "lsp" "mako" "mason" "mojolicious"
+                  "eccube" "elixir" "ejs" "erb" "freemarker" "go" "hero" "jsp" "lsp" "mako" "mason" "mojolicious"
                   "smarty" "template-toolkit" "web2py" "xoops" "svelte"))
     (save-excursion
       (when delim-open
@@ -3886,6 +3922,14 @@ another auto-completion with different ac-sources (e.g. ac-php)")
        (t
         (setq regexp "\"\\|'")))
       ) ;smarty
+
+     ((string= web-mode-engine "eccube")
+      (cond
+       ((string= sub2 "<!--{*")
+        (setq token-type 'comment))
+       (t
+        (setq regexp "\"\\|'")))
+      ) ;eccube
 
      ((string= web-mode-engine "xoops")
       (cond
@@ -4222,6 +4266,18 @@ another auto-completion with different ac-sources (e.g. ac-php)")
           (setq controls (append controls (list (cons 'open (match-string-no-properties 1))))))
          )
         ) ;smarty
+
+       ((string= web-mode-engine "eccube")
+        (cond
+         ((and (eq (char-after (+ reg-beg 5)) ?\/)
+               (web-mode-block-starts-with "\\([[:alpha:]]+\\)" reg-beg))
+          (setq controls (append controls (list (cons 'close (match-string-no-properties 1))))))
+         ((web-mode-block-starts-with "\\(else\\|elseif\\)" reg-beg)
+          (setq controls (append controls (list (cons 'inside "if")))))
+         ((web-mode-block-starts-with "\\(block\\|foreach\\|for\\|if\\|section\\|while\\)")
+          (setq controls (append controls (list (cons 'open (match-string-no-properties 1))))))
+         )
+        ) ;eccube
 
        ((string= web-mode-engine "xoops")
         (cond
@@ -10247,6 +10303,8 @@ Prompt user if TAG-NAME isn't provided."
           (setq content (concat "<%-- " sel " --%>")))
          ((and (= web-mode-comment-style 2) (string= web-mode-engine "smarty"))
           (setq content (concat "{* " sel " *}")))
+         ((and (= web-mode-comment-style 2) (string= web-mode-engine "eccube"))
+          (setq content (concat "<!--{* " sel " *}-->")))
          ((and (= web-mode-comment-style 2) (string= web-mode-engine "xoops"))
           (setq content (concat "<{* " sel " *}>")))
          ((and (= web-mode-comment-style 2) (string= web-mode-engine "hero"))
@@ -11559,6 +11617,7 @@ Prompt user if TAG-NAME isn't provided."
    ((string= web-mode-engine "mako")      (concat "% end" type))
    ((string= web-mode-engine "closure")   (concat "{/" type "}"))
    ((string= web-mode-engine "smarty")    (concat "{/" type "}"))
+   ((string= web-mode-engine "eccube")    (concat "<!--{/" type "}-->"))
    ((string= web-mode-engine "xoops")     (concat "<{/" type "}>"))
    ((string= web-mode-engine "svelte")    (concat "{/" type "}"))
    ((string= web-mode-engine "underscore")        "<% } %>")
