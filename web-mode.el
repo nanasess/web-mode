@@ -1182,7 +1182,7 @@ Must be used in conjunction with web-mode-enable-block-face."
     ("vue"              . (("{{ " . " }}")))
     ("web2py"           . (("{{ " . " }}")
                            ("{{=" . "}}")))
-    (nil                . (("<!-" . "- | -->")))
+    ("eccube"           . (("<!-" . "-{|}-->")))
     ))
 
 (defvar web-mode-engines-snippets
